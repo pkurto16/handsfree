@@ -124,6 +124,11 @@
   display: none !important;
 }
 
+.webgazerGazeDot {
+  display: none !important;
+}
+
+
 .calibrating #webgazerVideoContainer {
   display: block !important;
   position: fixed !important;
@@ -131,13 +136,6 @@
   left: 50% !important;
   transform: translate(-50%, -50%) !important;
   z-index: 1000 !important;
-}
-
-.webgazerGazeDot {
-  display: none !important;
-  position: fixed !important;
-  pointer-events: none !important;
-  z-index: 999999 !important;
 }
 
 .tracking-active .webgazerGazeDot {

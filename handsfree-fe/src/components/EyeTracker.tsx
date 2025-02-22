@@ -1,144 +1,154 @@
-'use client';
-
-import { useEffect, useRef } from 'react';
+// src/app/EyeTracker.tsx
+import React, { useEffect, useRef } from 'react';
 import { useHandsFree } from '@/contexts/HandsFreeContext';
+import type { GazeData } from '@/types';
 
-declare global {
-  interface Window {
-    webgazer: any;
+const KalmanFilter = {
+  create: () => {
+    let x = 0;
+    let p = 1;
+    const q = 0.1;
+    const r = 1;
+    return {
+      filter: (measurement: number) => {
+        const xPred = x;
+        const pPred = p + q;
+        const k = pPred / (pPred + r);
+        x = xPred + k * (measurement - xPred);
+        p = (1 - k) * pPred;
+        return x;
+      }
+    };
   }
-}
+};
 
 export function EyeTracker() {
-  const { config, isActive, calibrationStatus } = useHandsFree();
+  const { isActive, calibrationStatus, setCalibrationStatus } = useHandsFree();
+
   const webgazerRef = useRef<any>(null);
-  const gazeHistoryRef = useRef<Array<{ x: number; y: number }>>([]);
-
-  // Handle body class updates
-  useEffect(() => {
-    const body = document.body;
-    if (calibrationStatus === 'inProgress') {
-      body.classList.add('calibrating');
-      body.classList.remove('tracking-active');
-    } else if (calibrationStatus === 'completed' && isActive) {
-      body.classList.add('tracking-active');
-      body.classList.remove('calibrating');
-    } else {
-      body.classList.remove('calibrating', 'tracking-active');
-    }
-    return () => {
-      body.classList.remove('calibrating', 'tracking-active');
-    };
-  }, [calibrationStatus, isActive]);
+  const gazeHistoryRef = useRef<{ x: number; y: number }[]>([]);
+  
+  // Use an environment variable for the mouse server URL.
+  const serverUrl = process.env.NEXT_PUBLIC_MOUSE_SERVER_URL || 'https://localhost:3001';
 
   useEffect(() => {
+    console.log('EyeTracker mounted. Calibration status:', calibrationStatus);
+    console.log('Is active:', isActive);
+
     const loadWebgazer = async () => {
       try {
-        // Load WebGazer script
+        console.log('Loading WebGazer...');
         const script = document.createElement('script');
         script.src = 'https://webgazer.cs.brown.edu/webgazer.js';
         script.async = true;
 
         await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
+          script.onload = () => {
+            console.log('WebGazer script loaded');
+            resolve(null);
+          };
+          script.onerror = (err) => {
+            console.error('Failed to load WebGazer:', err);
+            reject(err);
+          };
           document.head.appendChild(script);
         });
 
         webgazerRef.current = window.webgazer;
+        console.log('WebGazer object initialized:', !!webgazerRef.current);
 
-        // Initialize WebGazer with optimized settings
         await webgazerRef.current
           .setRegression('ridge')
           .setTracker('TFFacemesh')
           .saveDataAcrossSessions(true)
-          .setGazeListener((data: any) => {
-            if (!data) return;
-            if (!isActive || calibrationStatus !== 'completed') return;
-
-            // Add to gaze history for smoothing
-            gazeHistoryRef.current.push({ x: data.x, y: data.y });
-            if (gazeHistoryRef.current.length > 5) {
-              gazeHistoryRef.current.shift();
+          .setGazeListener((data: GazeData) => {
+            console.log('Gaze data received:', data);
+            if (!data) {
+              console.log('Skipping gaze processing due to no data');
+              return;
             }
 
-            // Calculate smoothed coordinates
+            let { x, y } = data;
+            console.log('Processing gaze coordinates:', { x, y });
+
+            // Smooth coordinates using a window of up to 10 points.
+            gazeHistoryRef.current.push({ x, y });
+            if (gazeHistoryRef.current.length > 10) {
+              gazeHistoryRef.current.shift();
+            }
             const smoothedX = Math.round(
               gazeHistoryRef.current.reduce((sum, point) => sum + point.x, 0) /
-              gazeHistoryRef.current.length
+                gazeHistoryRef.current.length
             );
             const smoothedY = Math.round(
               gazeHistoryRef.current.reduce((sum, point) => sum + point.y, 0) /
-              gazeHistoryRef.current.length
+                gazeHistoryRef.current.length
             );
 
-            // Send coordinates to mouse control server
-            fetch('http://localhost:3001/move', {
+            console.log('Sending test request...');
+            // Test request to verify connectivity with the mouse server.
+            fetch(`${serverUrl}/test`)
+              .then((res) => res.json())
+              .then((data) => console.log('Test request succeeded:', data))
+              .catch((err) => console.error('Test request failed:', err));
+
+            console.log('Sending coordinates to mouse server:', { smoothedX, smoothedY });
+            // Send coordinates to mouse control server.
+            fetch(`${serverUrl}/move`, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                Accept: 'application/json'
               },
-              body: JSON.stringify({
-                x: smoothedX,
-                y: smoothedY
+              mode: 'cors',
+              credentials: 'include',
+              body: JSON.stringify({ x: smoothedX, y: smoothedY })
+            })
+              .then((response) => {
+                console.log('Mouse server response:', response.status);
+                return response.json();
               })
-            }).catch(err => console.error('Error sending gaze data:', err));
-
-            // Update WebGazer prediction point
-            if (webgazerRef.current.params.showPredictionPoints) {
-              const predictionPoint = document.querySelector('.webgazerGazeDot');
-              if (predictionPoint) {
-                predictionPoint.style.left = `${smoothedX}px`;
-                predictionPoint.style.top = `${smoothedY}px`;
-              }
-            }
+              .then((data) => {
+                console.log('Mouse server data:', data);
+              })
+              .catch((err) => {
+                console.error('Error sending gaze data:', err);
+              });
           })
           .begin();
 
-        // Initially hide WebGazer UI elements
-        webgazerRef.current.showVideo(false);
-        webgazerRef.current.showFaceOverlay(false);
-        webgazerRef.current.showFaceFeedbackBox(false);
-        webgazerRef.current.showPredictionPoints(false);
-
-        // Set smaller video size
-        webgazerRef.current.params.videoViewerWidth = 160;
-        webgazerRef.current.params.videoViewerHeight = 120;
-
-        console.log('WebGazer initialized successfully');
-
-      } catch (error) {
-        console.error('Error initializing WebGazer:', error);
+        console.log('WebGazer initialization completed');
+      } catch (error: any) {
+        console.error('Error in loadWebgazer:', error);
+        setCalibrationStatus('notStarted');
       }
     };
 
     loadWebgazer();
 
     return () => {
+      console.log('EyeTracker cleanup');
       if (webgazerRef.current) {
         webgazerRef.current.end();
       }
     };
   }, []);
 
-  // Update WebGazer UI based on calibration status
   useEffect(() => {
+    console.log('Status changed:', { calibrationStatus, isActive });
     if (!webgazerRef.current) return;
 
     if (calibrationStatus === 'inProgress') {
       webgazerRef.current.showVideo(true);
       webgazerRef.current.showFaceOverlay(true);
       webgazerRef.current.showFaceFeedbackBox(true);
+      // Always disable prediction points (red dot)
       webgazerRef.current.showPredictionPoints(false);
     } else if (calibrationStatus === 'completed') {
       webgazerRef.current.showVideo(false);
       webgazerRef.current.showFaceOverlay(false);
       webgazerRef.current.showFaceFeedbackBox(false);
-      webgazerRef.current.showPredictionPoints(isActive);
-    } else {
-      webgazerRef.current.showVideo(false);
-      webgazerRef.current.showFaceOverlay(false);
-      webgazerRef.current.showFaceFeedbackBox(false);
+      // Always disable prediction points (red dot)
       webgazerRef.current.showPredictionPoints(false);
     }
   }, [calibrationStatus, isActive]);
