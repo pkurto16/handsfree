@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Eye Gaze Mouse Control Prototype</title>
+  <!-- Load WebGazer for eye tracking -->
+  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #status {
+      padding: 10px;
+      margin: 10px 0;
+      display: inline-block;
+      border-radius: 4px;
+    }
+    .active {
+      background-color: #90EE90;
+      color: #006400;
+    }
+    .inactive {
+      background-color: #FFB6C1;
+      color: #8B0000;
+    }
+    button {
+      padding: 8px 16px;
+      margin: 10px 0;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>Eye Gaze Mouse Control Prototype</h2>
+  <p>Allow webcam access and then watch your gaze move the mouse pointer on your computer.</p>
+  <div id="status" class="inactive">Mouse Control: OFF</div>
+  <button id="kalmanToggle">Toggle Kalman Filter</button>
+  
+  <script>
+    let mouseControlOn = false;
+    let kalmanFilterOn = true;
+    const statusElement = document.getElementById('status');
+    const kalmanToggleBtn = document.getElementById('kalmanToggle');
+
+    // Update Kalman button text initially
+    kalmanToggleBtn.textContent = `Kalman Filter: ${kalmanFilterOn ? 'ON' : 'OFF'}`;
+
+    kalmanToggleBtn.addEventListener('click', () => {
+      kalmanFilterOn = !kalmanFilterOn;
+      webgazer.applyKalmanFilter(kalmanFilterOn);
+      kalmanToggleBtn.textContent = `Kalman Filter: ${kalmanFilterOn ? 'ON' : 'OFF'}`;
+    });
+
+    // toggle mouse control on and off with spacebar, send a message to the server to start and stop the mouse control
+    document.addEventListener('keydown', (event) => {
+      if (event.key === ' ') {
+        mouseControlOn = !mouseControlOn;
+        // Update status indicator
+        statusElement.className = mouseControlOn ? 'active' : 'inactive';
+        statusElement.textContent = `Mouse Control: ${mouseControlOn ? 'ON' : 'OFF'}`;
+        
+        fetch('http://localhost:3000/toggleMouseControl', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ mouseControlOn })
+        }).catch(err => console.error('Error sending gaze data:', err));
+      }
+    });
+
+    webgazer.setGazeListener(function(data, elapsedTime) {
+        console.log("data", data);
+        if (data == null) {
+            return;
+        }
+        var xprediction = data.x; //these x coordinates are relative to the viewport
+        var yprediction = data.y; //these y coordinates are relative to the viewport
+        console.log(xprediction, yprediction);
+        console.log(elapsedTime); //elapsed time is based on time since begin was called
+
+        fetch('http://localhost:3000/move', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ x: xprediction, y: yprediction})
+        }).catch(err => console.error('Error sending gaze data:', err));
+
+    }).begin();
+    webgazer.showVideo(false);
+    webgazer.showFaceOverlay(false);
+    webgazer.showFaceFeedbackBox(false);
+    webgazer.applyKalmanFilter(true);
+  </script>
+</body>
+</html>
