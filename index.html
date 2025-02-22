@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://webgazer.cs.brown.edu;">
   <title>Eye Gaze Mouse Control Prototype</title>
   <!-- Load WebGazer for eye tracking -->
   <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
@@ -39,6 +40,7 @@
   <button id="kalmanToggle">Toggle Kalman Filter</button>
   
   <script>
+    const { ipcRenderer } = require('electron');
     let mouseControlOn = false;
     let kalmanFilterOn = true;
     const statusElement = document.getElementById('status');
@@ -49,17 +51,20 @@
 
     kalmanToggleBtn.addEventListener('click', () => {
       kalmanFilterOn = !kalmanFilterOn;
-      webgazer.applyKalmanFilter(kalmanFilterOn);
+      // Send message using IPC
+      ipcRenderer.send('toggleKalmanFilter', kalmanFilterOn);
       kalmanToggleBtn.textContent = `Kalman Filter: ${kalmanFilterOn ? 'ON' : 'OFF'}`;
     });
 
-    // toggle mouse control on and off with spacebar, send a message to the server to start and stop the mouse control
+    // toggle mouse control
     document.addEventListener('keydown', (event) => {
       if (event.key === ' ') {
         mouseControlOn = !mouseControlOn;
-        // Update status indicator
         statusElement.className = mouseControlOn ? 'active' : 'inactive';
         statusElement.textContent = `Mouse Control: ${mouseControlOn ? 'ON' : 'OFF'}`;
+        
+        // Send message using IPC
+        ipcRenderer.send('toggleMouseControl', mouseControlOn);
         
         fetch('http://localhost:3000/toggleMouseControl', {
             method: 'POST',
@@ -67,33 +72,24 @@
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({ mouseControlOn })
-        }).catch(err => console.error('Error sending gaze data:', err));
+        }).catch(err => console.error('Error sending control data:', err));
       }
     });
 
-    webgazer.setGazeListener(function(data, elapsedTime) {
-        console.log("data", data);
-        if (data == null) {
-            return;
-        }
-        var xprediction = data.x; //these x coordinates are relative to the viewport
-        var yprediction = data.y; //these y coordinates are relative to the viewport
-        console.log(xprediction, yprediction);
-        console.log(elapsedTime); //elapsed time is based on time since begin was called
-
-        fetch('http://localhost:3000/move', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ x: xprediction, y: yprediction})
-        }).catch(err => console.error('Error sending gaze data:', err));
-
-    }).begin();
-    webgazer.showVideo(false);
-    webgazer.showFaceOverlay(false);
-    webgazer.showFaceFeedbackBox(false);
-    webgazer.applyKalmanFilter(true);
+    // Initialize WebGazer for calibration only
+    webgazer.showVideo(true)
+      .showFaceOverlay(true)
+      .showFaceFeedbackBox(true)
+      .applyKalmanFilter(kalmanFilterOn)
+      .setTracker('TFFacemesh')
+      .begin()
+      .then(() => {
+        console.log('WebGazer calibration initialized');
+        // Don't set a gaze listener here - we only want the calibration UI
+      })
+      .catch(err => {
+        console.error('Error starting WebGazer calibration:', err);
+      });
   </script>
 </body>
 </html>

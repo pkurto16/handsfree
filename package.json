@@ -1,18 +1,24 @@
 {
-  "name": "handsfree",
+  "name": "eye-gaze-mouse-control",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Install http-server in nodejs",
+  "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "electron .",
+    "rebuild": "electron-rebuild -f -w robotjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "body-parser": "^1.20.3",
-    "express": "^4.21.2",
+    "body-parser": "^1.20.2",
+    "electron": "^22.3.27",
+    "express": "^4.18.2",
+    "node-abi": "^3.74.0",
     "robotjs": "^0.6.0"
+  },
+  "devDependencies": {
+    "electron-rebuild": "^3.2.9"
   }
 }
