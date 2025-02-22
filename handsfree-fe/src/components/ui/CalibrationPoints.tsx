@@ -2,17 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { useHandsFree } from '@/contexts/HandsFreeContext';
-import { Target, X } from 'lucide-react';
+import { X, Target } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 
 const CALIBRATION_POINTS = [
-  { x: 10, y: 10 }, { x: 50, y: 10 }, { x: 90, y: 10 },
-  { x: 10, y: 50 }, { x: 50, y: 50 }, { x: 90, y: 50 },
-  { x: 10, y: 90 }, { x: 50, y: 90 }, { x: 90, y: 90 }
+  { x: 10, y: 10 },
+  { x: 50, y: 10 },
+  { x: 90, y: 10 },
+  { x: 10, y: 50 },
+  { x: 50, y: 50 },
+  { x: 90, y: 50 },
+  { x: 10, y: 90 },
+  { x: 50, y: 90 },
+  { x: 90, y: 90 }
 ];
 
-const CLICKS_PER_POINT = 5;
+// Increased clicks per point from 5 to 10 for improved calibration data.
+const CLICKS_PER_POINT = 2;
 
 export function CalibrationPoints() {
   const { calibrationStatus, setCalibrationStatus } = useHandsFree();
@@ -22,10 +29,9 @@ export function CalibrationPoints() {
   const [accuracy, setAccuracy] = useState(0);
   const [isCalibrationComplete, setIsCalibrationComplete] = useState(false);
 
-  // Set up WebGazer video position when calibration starts
+  // Center WebGazer's video container during calibration.
   useEffect(() => {
     if (calibrationStatus === 'inProgress') {
-      // Force the video container to center
       const videoContainer = document.getElementById('webgazerVideoContainer');
       if (videoContainer) {
         videoContainer.style.position = 'fixed';
@@ -37,7 +43,7 @@ export function CalibrationPoints() {
     }
   }, [calibrationStatus]);
 
-  // Handle calibration completion
+  // Mark calibration as complete when all points have been processed.
   useEffect(() => {
     if (isCalibrationComplete) {
       setCalibrationStatus('completed');
@@ -47,14 +53,14 @@ export function CalibrationPoints() {
   useEffect(() => {
     if (calibrationStatus === 'inProgress' && window.webgazer) {
       const handleClick = (e: MouseEvent) => {
-        // Ensure WebGazer records the click for calibration
+        // Record the click for calibration.
         window.webgazer.recordScreenPosition(e.clientX, e.clientY, 'click');
 
-        // Update UI state
-        setClickCount(prev => {
+        // Update click counts.
+        setClickCount((prev) => {
           const newCount = prev + 1;
           if (newCount >= CLICKS_PER_POINT) {
-            setCurrentPoint(prevPoint => {
+            setCurrentPoint((prevPoint) => {
               if (prevPoint >= CALIBRATION_POINTS.length - 1) {
                 setIsCalibrationComplete(true);
                 return prevPoint;
@@ -66,8 +72,7 @@ export function CalibrationPoints() {
           }
           return newCount;
         });
-
-        setTotalClicks(prev => prev + 1);
+        setTotalClicks((prev) => prev + 1);
       };
 
       document.addEventListener('click', handleClick);
@@ -75,7 +80,7 @@ export function CalibrationPoints() {
     }
   }, [calibrationStatus]);
 
-  // Monitor WebGazer's prediction accuracy
+  // Monitor WebGazer's prediction accuracy.
   useEffect(() => {
     if (calibrationStatus === 'inProgress') {
       const checkAccuracy = setInterval(() => {
@@ -88,7 +93,6 @@ export function CalibrationPoints() {
           });
         }
       }, 1000);
-
       return () => clearInterval(checkAccuracy);
     }
   }, [calibrationStatus]);
@@ -96,32 +100,38 @@ export function CalibrationPoints() {
   if (calibrationStatus !== 'inProgress') return null;
 
   const point = CALIBRATION_POINTS[currentPoint];
-  const progress = (totalClicks / (CALIBRATION_POINTS.length * CLICKS_PER_POINT)) * 100;
+  const progress =
+    (totalClicks / (CALIBRATION_POINTS.length * CLICKS_PER_POINT)) * 100;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex flex-col items-center">
-      {/* Brief instructions - Top */}
+      {/* Instructions */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 text-white text-center">
         <h2 className="text-2xl font-bold">Calibration in Progress</h2>
-        <p className="text-sm mt-2">Look at and click each point {CLICKS_PER_POINT} times</p>
+        <p className="text-sm mt-2">
+          Look at and click each point {CLICKS_PER_POINT} times
+        </p>
       </div>
 
-      {/* Progress info - Bottom */}
+      {/* Progress Info */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 text-white text-center max-w-xl bg-black/30 p-4 rounded-lg">
         <div className="space-y-2">
           <p className="text-sm">Progress: {Math.round(progress)}%</p>
           <Progress value={progress} className="w-full" />
           <div className="flex justify-between text-sm mt-2">
-            <span>Point {currentPoint + 1} of {CALIBRATION_POINTS.length}</span>
+            <span>
+              Point {currentPoint + 1} of {CALIBRATION_POINTS.length}
+            </span>
             <span>Clicks needed: {CLICKS_PER_POINT - clickCount}</span>
           </div>
           {accuracy > 0 && (
-            <p className="text-sm">Tracking Accuracy: {Math.round(accuracy)}%</p>
+            <p className="text-sm">
+              Tracking Accuracy: {Math.round(accuracy)}%
+            </p>
           )}
         </div>
       </div>
 
-      {/* Calibration point */}
       <div
         className="absolute"
         style={{
@@ -130,10 +140,7 @@ export function CalibrationPoints() {
           transform: 'translate(-50%, -50%)'
         }}
       >
-        <Target
-          className="text-red-700 animate-pulse"
-          size={32}
-        />
+        <Target className="text-red-700 animate-pulse" size={32} />
       </div>
 
       {/* Cancel button */}

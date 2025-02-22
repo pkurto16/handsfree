@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://webgazer.cs.brown.edu;">
+  <title>Eye Gaze Background Tracker</title>
+  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+</head>
+<body style="background: transparent;">
+  <script>
+    const { ipcRenderer } = require('electron');
+    let mouseControlOn = false;
+    let kalmanFilterOn = true;
+
+    // Listen for IPC messages
+    ipcRenderer.on('toggleMouseControl', (event, value) => {
+      mouseControlOn = value;
+      console.log('Background: Mouse control toggled to:', mouseControlOn);
+    });
+
+    ipcRenderer.on('toggleKalmanFilter', (event, value) => {
+      kalmanFilterOn = value;
+      webgazer.applyKalmanFilter(kalmanFilterOn);
+      console.log('Background: Kalman filter toggled to:', kalmanFilterOn);
+    });
+
+    webgazer.setGazeListener(function(data, elapsedTime) {
+        if (data == null) {
+            console.log('No gaze data received');
+            return;
+        }
+        
+        // Force continuous tracking
+        webgazer.resume();
+        
+        var xprediction = data.x;
+        var yprediction = data.y;
+        
+        console.log(`[${new Date().toISOString()}] Gaze data - x: ${xprediction}, y: ${yprediction}, mouseControl: ${mouseControlOn}`);
+
+        if (mouseControlOn) {
+            fetch('http://localhost:3000/move', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ x: xprediction, y: yprediction})
+            }).catch(err => console.error('Error sending gaze data:', err));
+        }
+    }).begin();
+
+    // Initial setup
+    webgazer.showVideo(false)  // Hide video in background window
+      .showFaceOverlay(false)  // Hide overlay in background window
+      .showFaceFeedbackBox(false)  // Hide feedback box in background window
+    webgazer.applyKalmanFilter(true);
+    webgazer.setTracker('TFFacemesh');
+    
+    // Force continuous tracking
+    setInterval(() => {
+        if (webgazer.isReady()) {
+            webgazer.resume();
+        }
+    }, 1000);
+
+    webgazer.begin().then(() => {
+        console.log('WebGazer has begun tracking');
+    }).catch(err => {
+        console.error('Error starting WebGazer:', err);
+    });
+  </script>
+</body>
+</html> 

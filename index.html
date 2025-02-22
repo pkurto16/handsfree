@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://webgazer.cs.brown.edu;">
   <title>Eye Gaze Mouse Control Prototype</title>
   <!-- Load WebGazer for eye tracking -->
   <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
@@ -74,6 +75,7 @@
   </div>
 
   <script>
+    const { ipcRenderer } = require('electron');
     let mouseControlOn = false;
     let kalmanFilterOn = true;
     const statusElement = document.getElementById('status');
@@ -81,25 +83,33 @@
     const startCalibrationBtn = document.getElementById('startCalibration');
     const calibrationContainer = document.getElementById('calibration-container');
 
+    // Update Kalman button text initially
     kalmanToggleBtn.textContent = `Kalman Filter: ${kalmanFilterOn ? 'ON' : 'OFF'}`;
 
     kalmanToggleBtn.addEventListener('click', () => {
       kalmanFilterOn = !kalmanFilterOn;
-      webgazer.applyKalmanFilter(kalmanFilterOn);
+      // Send message using IPC
+      ipcRenderer.send('toggleKalmanFilter', kalmanFilterOn);
       kalmanToggleBtn.textContent = `Kalman Filter: ${kalmanFilterOn ? 'ON' : 'OFF'}`;
     });
 
+    // toggle mouse control
     document.addEventListener('keydown', (event) => {
       if (event.key === ' ') {
         mouseControlOn = !mouseControlOn;
         statusElement.className = mouseControlOn ? 'active' : 'inactive';
         statusElement.textContent = `Mouse Control: ${mouseControlOn ? 'ON' : 'OFF'}`;
 
+        // Send message using IPC
+        ipcRenderer.send('toggleMouseControl', mouseControlOn);
+
         fetch('http://localhost:3000/toggleMouseControl', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ mouseControlOn })
-        }).catch(err => console.error('Error sending gaze data:', err));
+        }).catch(err => console.error('Error sending control data:', err));
       }
     });
 
@@ -114,14 +124,14 @@
         }).catch(err => console.error('Error sending gaze data:', err));
     }).begin();
 
-    webgazer.showVideo(false);
-    webgazer.showFaceOverlay(false);
-    webgazer.showFaceFeedbackBox(false);
-    webgazer.applyKalmanFilter(true);
+    webgazer.showVideo(false)
+      .showFaceOverlay(false)
+      .showFaceFeedbackBox(false)
+      .applyKalmanFilter(kalmanFilterOn);
 
     // --------- Calibration Functions --------- //
     let clickedPoints = 0;
-    
+
     function startCalibration() {
       clickedPoints = 0;
       calibrationContainer.innerHTML = `<div id="calibration-message">Click all the red dots to calibrate</div>`;

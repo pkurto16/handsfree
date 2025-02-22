@@ -120,9 +120,17 @@
   }
 }
 
-/* WebGazer video feed styles */
 #webgazerVideoContainer {
   display: none !important;
+}
+
+.webgazerGazeDot {
+  display: none !important;
+}
+
+
+.calibrating #webgazerVideoContainer {
+  display: block !important;
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
@@ -130,22 +138,6 @@
   z-index: 1000 !important;
 }
 
-/* Hide WebGazer video during calibration */
-.calibrating #webgazerVideoContainer {
-  display: block !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-}
-
-/* Hide prediction dot initially */
-.webgazerGazeDot {
-  display: none !important;
-  position: fixed;
-  z-index: 999999;
-}
-
-/* Only show prediction dot when active */
 .tracking-active .webgazerGazeDot {
   display: block !important;
 }
